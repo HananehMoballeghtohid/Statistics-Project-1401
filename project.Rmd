@@ -1,0 +1,489 @@
+---
+title: "Untitled"
+author: "Hananeh Moballeghtohid"
+date: "2023-06-30"
+output: pdf_document
+---
+
+```{r}
+#importing raw dataset to R studio.
+rawData <- read.csv("./CarPrice_Assignment.csv", na.strings = c("", NA))
+print(rawData)
+```
+
+```{r}
+#draw boxplot graph of "car length, car height and engine size".
+carLength <- rawData$carlength
+carHeight <- rawData$carheight
+engineSize <- rawData$enginesize
+boxplot(carLength, carHeight, engineSize,
+        names = c("Car Length", "Car Height", "Engine Size"),
+        xlab = "Columns",
+        ylab = "Values",
+        col = c("red", "lightblue", "green"),
+        border = c("darkred", "darkblue", "darkgreen"),
+        col.outlier = c("black", "black", "black"),
+        border.outlier = c("black", "black", "black"))
+
+```
+
+```{r}
+#finding columns with missing values:
+for (col in 1:ncol(rawData)) {
+  has_missing <- any(is.na(rawData[, col]))
+  if (has_missing) {
+    col_name <- colnames(rawData)[col]
+    print(paste("The column", col_name, "contains missing values."))
+  }
+}
+```
+
+```{r}
+install.packages("mice")
+```
+
+```{r}
+carbody_prediction_data <- data.frame(carbody = rawData$carbody,
+                   carlength = rawData$carlength,
+                   carheight = rawData$carheight,
+                   carwidth = rawData$carwidth)
+
+library(mice)
+
+# Specify the imputation model with logistic regression
+imputation_model <- mice(na.omit(carbody_prediction_data), method = "logreg",
+                         formulas = list(carbody ~ carheight + carlength + carwidth))
+
+# Perform the imputation
+imputed_data <- complete(imputation_model)
+
+#creating a data set with filled data
+data_filled <- rawData
+num_rows <- nrow(data_filled)
+
+#filling the created dataset
+j = 1
+for (i in 1:num_rows) {
+  if (is.na(data_filled[i, "carbody"])) {
+    data_filled[i, "carbody"] <- imputed_data[j, "carbody"]
+    j <- j + 1
+  }
+}
+
+```
+
+```{r}
+#checking to see if curbweight is related to engine size.
+curbweight_prediction_data <- data.frame(curbweight = rawData$curbweight,
+                   enginesize = rawData$enginesize)
+correlation <- cor(na.omit(curbweight_prediction_data)$enginesize, na.omit(curbweight_prediction_data)$curbweight)
+print(correlation)
+#the correlation between them is 0.8473306 which indicates a strong positive correlation between the two variables.
+#predicting the missing values in curbweight with linear regression:
+library(mice)
+
+# Specify the imputation model with linear regression based on engine size:
+imputation_model <- mice(na.omit(curbweight_prediction_data), method = "norm.predict",
+                         formulas = list(curbweight ~ enginesize))
+
+# Perform the imputation
+imputed_data <- complete(imputation_model)
+
+#creating a data set with filled data
+num_rows <- nrow(data_filled)
+
+#filling the created dataset
+j = 1
+for (i in 1:num_rows) {
+  if (is.na(data_filled[i, "curbweight"])) {
+    data_filled[i, "curbweight"] <- imputed_data[j, "curbweight"]
+    j <- j + 1
+  }
+}
+```
+
+```{r}
+cylinder_prediction_data <- data.frame(cylinder = rawData$cylindernumber,
+                   enginesize = rawData$enginesize,
+                   horsepower = rawData$horsepower,
+                   enginetype = rawData$enginetype)
+
+library(mice)
+
+# Specify the imputation model with logistic regression
+imputation_model <- mice(na.omit(cylinder_prediction_data), method = "logreg",
+                         formulas = list(cylinder ~ enginesize + horsepower + enginetype))
+
+# Perform the imputation
+imputed_data <- complete(imputation_model)
+num_rows <- nrow(data_filled)
+
+#filling the created dataset
+j = 1
+for (i in 1:num_rows) {
+  if (is.na(data_filled[i, "cylindernumber"])) {
+    data_filled[i, "cylindernumber"] <- imputed_data[j, "cylinder"]
+    j <- j + 1
+  }
+}
+```
+
+```{r}
+boreratio_prediction_data <- data.frame(boreratio = rawData$boreratio,
+                   enginesize = rawData$enginesize,
+                   horsepower = rawData$horsepower,
+                   enginetype = rawData$enginetype,
+                   compressionratio = rawData$compressionratio)
+
+library(mice)
+
+# Specify the imputation model with logistic regression
+imputation_model <- mice(na.omit(boreratio_prediction_data), method = "logreg",
+                         formulas = list(boreratio ~ enginesize + horsepower + enginetype + compressionratio))
+
+# Perform the imputation
+imputed_data <- complete(imputation_model)
+num_rows <- nrow(data_filled)
+
+#filling the created dataset
+j = 1
+for (i in 1:num_rows) {
+  if (is.na(data_filled[i, "boreratio"])) {
+    data_filled[i, "boreratio"] <- imputed_data[j, "boreratio"]
+    j <- j + 1
+  }
+}
+```
+
+```{r}
+#check to see if there is still any missing values:
+for (col in 1:ncol(data_filled)) {
+  has_missing <- any(is.na(data_filled[, col]))
+  if (has_missing) {
+    col_name <- colnames(data_filled)[col]
+    print(paste("The column", col_name, "contains missing values."))
+  }
+}
+```
+
+```{r}
+#seperating car brands from car names:
+data_filled <- transform(data_filled, carbrand =
+                    sub("\\s.*", "", CarName))
+```
+
+```{r}
+#initilizing a new dataset to clean data and add dummy variables:
+newData <- data_filled
+newData <- subset(newData, select = -CarName)
+newData <- newData[ , -1]
+newData <- newData[ , -1]
+print(newData)
+```
+
+```{r}
+newData <- subset(newData, select = -carbrand)
+```
+
+```{r}
+numericCols <- sapply(newData, function(x) is.numeric(x))
+numericData <- newData[, numericCols]
+numericData
+```
+
+```{r}
+corMatrix <- cor(numericData)
+library(ggplot2)
+ggplot(data = reshape2::melt(corMatrix), aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red", midpoint = 0) +
+  labs(x = "", y = "" , title = "Correlation Map")
+```
+
+```{r}
+#first hypothesis:
+#There is a strong positive correlation between price and engine size:
+#null hypothesis: the correlation between price and engine size is 0.
+#testing the hypothesis:
+cor.test(newData$price, newData$enginesize)
+#we can reject the null hypothesis.
+```
+
+```{r}
+#second hypothesis:
+#There is a strong negative correlation between curbweight and highway mpg:
+#null hypothesis: the correlation between curbweight and highway mpg is 0.
+#testing the hypothesis:
+cor.test(newData$curbweight, newData$highwaympg)
+#we can reject the null hypothesis.
+```
+
+```{r}
+#third hypothesis:
+#There is a strong correlation between bore ratio and compression ratio:
+#null hypothesis: the correlation between bore ratio and compression ratio is 0.
+#testing the hypothesis:
+cor.test(newData$boreratio, newData$compressionratio)
+#we accept the null hypothesis.
+```
+
+```{r}
+#forth hypothesis:
+#There is no significant correlation between horsepower and engine size:
+#null hypothesis: the correlation between horsepower and engine size is significant.
+#testing the hypothesis:
+cor.test(newData$horsepower, newData$enginesize)
+#we accept the null hypothesis: there is a strong positive correlation between the two variables.
+```
+
+```{r}
+# Get the names of the categorical columns
+categoricals <- sapply(newData, is.character)
+
+# Iterate over the categorical columns and count unique values
+for (col in names(newData[categoricals])) {
+  uniqueValues <- unique(newData[[col]])
+  numUnique <- length(uniqueValues)
+  cat(paste("Column:", col, "- Number of unique values:", numUnique), "\n")
+}
+```
+
+```{r}
+newData[newData == "two"] <- 2
+newData[newData == "three"] <- 3
+newData[newData == "four"] <- 4
+newData[newData == "five"] <- 5
+newData[newData == "six"] <- 6
+newData[newData == "eight"] <- 8
+newData[newData == "twelve"] <- 12
+newData$doornumber <- as.numeric(newData$doornumber)
+newData$cylindernumber <- as.numeric(newData$cylindernumber)
+```
+
+```{r}
+library(caret)
+# Create dummy variables
+categoricals <- sapply(newData, is.character)
+dummies <- dummyVars(~., data = newData[categoricals])
+transformed_data <- predict(dummies, newdata = newData)
+data_with_dummy <- cbind(newData, transformed_data)
+data_with_dummy <- subset(data_with_dummy, select = -fueltypediesel)
+data_with_dummy <- subset(data_with_dummy, select = -aspirationstd)
+data_with_dummy <- subset(data_with_dummy, select = -carbodyconvertible)
+data_with_dummy <- subset(data_with_dummy, select = -drivewheel4wd)
+data_with_dummy <- subset(data_with_dummy, select = -enginelocationrear)
+data_with_dummy <- subset(data_with_dummy, select = -enginetypedohcv)
+data_with_dummy <- subset(data_with_dummy, select = -fuelsystem1bbl)
+data_with_dummy
+```
+
+```{r}
+#create dummy variables for car brands:
+dummy_vars <- model.matrix(~ newData$carbrand - 1, data = newData)
+# Append the dummy variables to the original dataset:
+newData <- cbind(newData, dummy_vars)
+newData <- subset(newData, select = -carbrand)
+```
+
+```{r}
+# Remove categorical columns from the dataset
+data_without_categorical <- data_with_dummy[, !categoricals]
+corMatrix <- cor(data_without_categorical)
+library(corrplot)
+
+# Customize the correlation plot with vertical x-axis labels
+corrplot(corMatrix, method = "color", type = "lower", order = "original",
+         tl.srt = 45)
+data_without_categorical
+```
+
+```{r}
+# Proportion of data to be used for testing (e.g., 30%)
+test_proportion <- 0.3
+
+# Get the number of rows in the dataset
+n <- nrow(data_without_categorical)
+
+# Create a vector of randomly selected row indices for the test set
+test_indices <- sample(1:n, floor(test_proportion * n))
+
+# Split the data into train and test sets
+train_data <- data_without_categorical[-test_indices, ]  # Exclude rows with test indices
+test_data <- data_without_categorical[test_indices, ]    # Select rows with test indices
+
+train_data
+test_data
+```
+
+```{r}
+model <- lm(train_data$price ~ . , data = train_data)
+summary(model)
+```
+
+```{r}
+#calculating RSS:
+train_predicted <- predict(model, train_data)
+test_predicted <- predict(model, test_data)
+train_RSS <- sum((train_predicted - train_data$price)^2)
+test_RSS <- sum((test_predicted - test_data$price)^2) 
+print(c("the train RSS is: " , train_RSS))
+print(c("the test RSS is: " , test_RSS))
+```
+
+```{r}
+#calculating TSS:
+train_TSS <- sum((train_data$price - mean(train_data$price))^2)
+test_TSS <- sum((test_data$price - mean(test_data$price))^2)
+print(c("the train TSS is: " , train_TSS))
+print(c("the test TSS is: " , test_TSS))
+```
+
+```{r}
+train_MSE <- train_RSS / nrow(train_data)
+test_MSE <- test_RSS / nrow(test_data)
+
+print(c("the train MSE is: " , train_MSE))
+print(c("the test MSE is: " , test_MSE))
+```
+
+```{r}
+train_rsquared <- 1 - train_RSS / train_TSS
+test_rsqaured <- 1 - test_RSS / test_TSS
+print(c("the train R-squared is: " , train_rsquared))
+print(c("the test R-squared is: " , test_rsqaured))
+```
+
+```{r}
+num_predictors <- length(model$coefficients) - 1
+train_adjusted <- 1 - (train_RSS/(nrow(train_data) - num_predictors)) / 
+  (train_TSS / (nrow(train_data) - 1))
+test_adjusted <- 1 - (test_RSS/(nrow(test_data) - num_predictors)) / 
+  (test_TSS / (nrow(test_data) - 1))
+print(c("the train R-adjusted is: " , train_adjusted))
+print(c("the test R-adjusted is: " , test_adjusted))
+```
+
+```{r}
+library(coefplot)
+coefplot(model)
+```
+
+
+```{r}
+# Get p-values
+p_values <- summary(model)$coefficients[, 4]
+
+# Identify insignificant columns
+insignificant_columns <- names(p_values[p_values > 0.05])
+
+# Remove insignificant columns from the dataset
+filtered_data <- data_without_categorical[, !(names(data_without_categorical) %in% insignificant_columns)]
+
+#remove NA columns
+filtered_data <- filtered_data[, -c(14,13)]
+filtered_train_data <- filtered_data[-test_indices, ]  # Exclude rows with test indices
+filtered_test_data <- filtered_data[test_indices, ]    # Select rows with test indices
+new_model <- lm(filtered_train_data$price ~ . , data = filtered_train_data)
+summary(new_model)
+```
+```{r}
+#calculating RSS:
+filtered_train_predicted <- predict(new_model, filtered_train_data)
+filtered_test_predicted <- predict(new_model, filtered_test_data)
+filtered_train_RSS <- sum((filtered_train_predicted - filtered_train_data$price)^2)
+filtered_test_RSS <- sum((filtered_test_predicted - filtered_test_data$price)^2) 
+print(c("the filtered train RSS is: " , filtered_train_RSS))
+print(c("the filtered test RSS is: " , filtered_test_RSS))
+```
+
+```{r}
+#calculating TSS:
+filtered_train_TSS <- sum((filtered_train_data$price - mean(filtered_train_data$price))^2)
+filtered_test_TSS <- sum((filtered_test_data$price - mean(filtered_test_data$price))^2)
+print(c("the filtered train TSS is: " , filtered_train_TSS))
+print(c("the filtered test TSS is: " , filtered_test_TSS))
+```
+
+```{r}
+filtered_train_MSE <- filtered_train_RSS / nrow(filtered_train_data)
+filtered_test_MSE <- filtered_test_RSS / nrow(filtered_test_data)
+
+print(c("the filtered train MSE is: " , filtered_train_MSE))
+print(c("the filtered test MSE is: " , filtered_test_MSE))
+```
+
+```{r}
+filtered_train_rsquared <- 1 - filtered_train_RSS / filtered_train_TSS
+filtered_test_rsqaured <- 1 - filtered_test_RSS / filtered_test_TSS
+print(c("the filtered train R-squared is: " , filtered_train_rsquared))
+print(c("the filtered test R-squared is: " , filtered_test_rsqaured))
+```
+
+```{r}
+filtered_num_predictors <- length(new_model$coefficients) - 1
+filtered_train_adjusted <- 1 - (filtered_train_RSS/(nrow(filtered_train_data) - filtered_num_predictors)) / 
+  (filtered_train_TSS / (nrow(filtered_train_data) - 1))
+filtered_test_adjusted <- 1 - (filtered_test_RSS/(nrow(filtered_test_data) - filtered_num_predictors)) / 
+  (filtered_test_TSS / (nrow(filtered_test_data) - 1))
+print(c("the filtered train R-adjusted is: " , filtered_train_adjusted))
+print(c("the filtered test R-adjusted is: " , filtered_test_adjusted))
+```
+```{r}
+anova <- anova(model)
+anova
+```
+```{r}
+names(coefficients(model)[order(anova$`F value` , decreasing = T) + 1][1:10])
+```
+```{r}
+attach(train_data)
+synergy_data <- cbind(train_data,
+                      stroke_boreratio = stroke*boreratio,
+                      compression_boreratio = compressionratio*boreratio,
+                      wheelbase_carlength = wheelbase*carlength,
+                      enginesize_curbweight = enginesize*curbweight,
+                      enginesize_horsepower = enginesize*horsepower,
+                      carheight_carwidth = carheight*carwidth,
+                      citympg_horsepower = citympg*horsepower,
+                      citympg_highwaympg = citympg*highwaympg,
+                      carwidth_enginesize = carwidth*enginesize,
+                      cylinder_horsepower = cylindernumber*horsepower)
+
+synergy_model <- lm(price ~ . , data = synergy_data)
+summary(synergy_model)
+```
+
+
+```{r}
+data_without_categorical$price <- log(data_without_categorical$price)
+train_data <- data_without_categorical[-test_indices, ]  # Exclude rows with test indices
+test_data <- data_without_categorical[test_indices, ]    # Select rows with test indices
+model <- lm(train_data$price ~ . , data = train_data)
+summary(model)
+
+#calculating RSS:
+train_predicted <- predict(model, train_data)
+test_predicted <- predict(model, test_data)
+train_RSS <- sum((train_predicted - train_data$price)^2)
+test_RSS <- sum((test_predicted - test_data$price)^2) 
+print(c("the train RSS is: " , train_RSS))
+print(c("the test RSS is: " , test_RSS))
+```
+
+```{r}
+#calculating TSS:
+train_TSS <- sum((train_data$price - mean(train_data$price))^2)
+test_TSS <- sum((test_data$price - mean(test_data$price))^2)
+print(c("the train TSS is: " , train_TSS))
+print(c("the test TSS is: " , test_TSS))
+```
+```{r}
+num_predictors <- length(model$coefficients) - 1
+train_adjusted <- 1 - (train_RSS/(nrow(train_data) - num_predictors)) / 
+  (train_TSS / (nrow(train_data) - 1))
+test_adjusted <- 1 - (test_RSS/(nrow(test_data) - num_predictors)) / 
+  (test_TSS / (nrow(test_data) - 1))
+print(c("the train R-adjusted is: " , train_adjusted))
+print(c("the test R-adjusted is: " , test_adjusted))
+```
+
